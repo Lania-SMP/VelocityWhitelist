@@ -119,3 +119,6 @@ run/
 
 # Other files and directories to ignore
 .out/
+
+# Ignore Gradle build output directory
+build

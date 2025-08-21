@@ -1,7 +1,7 @@
 // This file is part of VelocityWhitelist.
 // Copyright (C) 2025 Rathinosk
 //
-package top.rathinosk.velocitywhitelist;
+package net.lania.whitelist;
 
 /**
  * BuildConstants class stores constants that are replaced before compilation.

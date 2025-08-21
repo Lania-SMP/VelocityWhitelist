@@ -1,82 +1,78 @@
-// This file is part of VelocityWhitelist.
-// Copyright (C) 2025 Rathinosk
-//
 plugins {
-    id 'java'
-    id 'eclipse'
-    id "org.jetbrains.gradle.plugin.idea-ext" version "1.1.10"
-    id "com.github.johnrengelman.shadow" version "8.1.1"
+  id 'java'
+  id "org.jetbrains.gradle.plugin.idea-ext" version "1.1.10"
+  id "com.github.johnrengelman.shadow" version "8.1.1"
 }
 
 repositories {
-    maven {
-        name = 'papermc'
-        url = 'https://repo.papermc.io/repository/maven-public/'
-    }
-    mavenCentral() // Add Maven Central as a fallback repository
+  maven {
+    name = 'papermc'
+    url = 'https://repo.papermc.io/repository/maven-public/'
+  }
+  mavenCentral() // Add Maven Central as a fallback repository
 }
 
 configurations {
-    shadowImplementation {
-        canBeResolved = true
-        canBeConsumed = false
-        extendsFrom configurations.implementation
-    }
+  shadowImplementation {
+    canBeResolved = true
+    canBeConsumed = false
+    extendsFrom configurations.implementation
+  }
 }
 
 dependencies {
-    compileOnly 'com.velocitypowered:velocity-api:3.4.0-SNAPSHOT'
-    annotationProcessor 'com.velocitypowered:velocity-api:3.4.0-SNAPSHOT'
-    implementation 'org.mariadb.jdbc:mariadb-java-client:2.7.12'
-    implementation 'org.bstats:bstats-velocity:3.1.0'
+  // Lombok
+  compileOnly libs.lombok
+  annotationProcessor libs.lombok
+
+  // Velocity API
+  compileOnly libs.velocity
+  annotationProcessor libs.velocity
+
+  // MariaDB
+  implementation libs.mariadb
 }
 
-shadowJar {
-    relocate 'org.bstats', 'top.rathinosk.velocitywhitelist'
-}
-
-group = 'top.rathinosk'
-version = '1.2.8'
-description = 'Velocity plugin for managing a Minecraft whitelist using MySQL'
+group = 'net.lania'
+version = '1.3.0'
+description = 'Whitelist plugin for managing a Minecraft whitelist using MySQL'
 
 def targetJavaVersion = 17
 java {
-    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
-    sourceCompatibility = javaVersion
-    targetCompatibility = javaVersion
-    if (JavaVersion.current() < javaVersion) {
-        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
-    }
+  sourceCompatibility = JavaVersion.VERSION_17
+  targetCompatibility = JavaVersion.VERSION_17
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+  }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
+  options.encoding = 'UTF-8'
 
-    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
-        options.release.set(targetJavaVersion)
-    }
+  if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+    options.release.set(targetJavaVersion)
+  }
 }
 
 def templateSource = file('src/main/templates')
 def templateDest = layout.buildDirectory.dir('generated/sources/templates')
 def generateTemplates = tasks.register('generateTemplates', Copy) { task ->
-    def props = [
-            'id'         : "velocitywhitelist",
-            'name'       : project.name,
-            'version'    : project.version,
-            'link'       : "https://github.com/rathinosk/VelocityWhitelist",
-            'description': project.description,
-            'authors'    : "rathinosk",
-            'buildDate'  : java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-    ]
-    task.inputs.properties props
+  def props = [
+    'id'         : "laniawhitelist",
+    'name'       : project.name,
+    'version'    : project.version,
+    'link'       : "https://github.com/lania-smp/VelocityWhitelist",
+    'description': project.description,
+    'authors'    : "rathinosk,keelfy",
+    'buildDate'  : java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+  ]
+  task.inputs.properties props
 
-    task.from templateSource
-    task.into templateDest
-    task.expand props
+  task.from templateSource
+  task.into templateDest
+  task.expand props
 }
 
 sourceSets.main.java.srcDir(generateTemplates.map { it.outputs })
 
 idea.project.settings.taskTriggers.afterSync(generateTemplates)
-tasks.named("eclipse") { it.dependsOn(generateTemplates) }
