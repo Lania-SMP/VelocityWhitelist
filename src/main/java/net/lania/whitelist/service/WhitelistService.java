@@ -40,8 +40,13 @@ public class WhitelistService {
 
     plugin.logDebug("Checking if {} (UUID: {}) is whitelisted", username, uniqueId);
 
-    if (storage.findEntryByUniqueId(uniqueId)) {
-      storage.updateUsernameByUniqueId(uniqueId, username);
+    val result = storage.findEntryByUniqueId(uniqueId);
+    if (result == -1) {
+      player.sendMessage(config.getLocalizedMessages().get(config.getDefaultLocale()).getFailedToCheckWhitelist());
+      return false;
+    }
+
+    if (result == 1) {
       return true;
     }
 
@@ -76,7 +81,13 @@ public class WhitelistService {
 
     val uniqueId = UuidUtils.generateUniqueId(username);
 
-    if (storage.findEntryByUniqueId(uniqueId)) {
+    val result = storage.findEntryByUniqueId(uniqueId);
+    if (result == -1) {
+      source.sendMessage(Component.text("Failed to add " + username + " to the whitelist.", NamedTextColor.RED));
+      return;
+    }
+
+    if (result == 1) {
       source.sendMessage(Component.text(username + " is already whitelisted.", NamedTextColor.RED));
       return;
     }
@@ -99,7 +110,13 @@ public class WhitelistService {
 
     val uniqueId = UuidUtils.generateUniqueId(username);
 
-    if (!storage.findEntryByUniqueId(uniqueId)) {
+    val result = storage.findEntryByUniqueId(uniqueId);
+    if (result == -1) {
+      source.sendMessage(Component.text("Failed to remove " + username + " from the whitelist.", NamedTextColor.RED));
+      return;
+    }
+
+    if (result == 1) {
       source.sendMessage(Component.text(username + " is not whitelisted.", NamedTextColor.RED));
       return;
     }

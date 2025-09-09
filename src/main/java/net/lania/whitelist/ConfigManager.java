@@ -1,52 +1,82 @@
 package net.lania.whitelist;
 
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.Properties;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.dvs.versioning.BasicVersioning;
+import dev.dejvokep.boostedyaml.settings.dumper.DumperSettings;
+import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
+import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
+import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
 import lombok.Getter;
 import lombok.val;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.lania.whitelist.config.DatabaseConfig;
+import net.lania.whitelist.config.Messages;
 
+@Getter
 public class ConfigManager {
 
-  private final String DEFAULT_KICK_MESSAGE = "Sorry, you are not in the whitelist.";
-  private final String DEFAULT_TABLE = "g_whitelist";
-  private final String DATABASE_URL_FORMAT = "jdbc:mysql://%s:%s/%s?useSSL=false";
-
+  @Getter(lombok.AccessLevel.NONE)
   private final VelocityWhitelist plugin;
-  private final Path dataDirectory;
+  @Getter(lombok.AccessLevel.NONE)
   private final Logger logger;
-  private final Path configFile;
-
-  private Properties properties;
+  @Getter(lombok.AccessLevel.NONE)
+  private final File configFile;
+  @Getter(lombok.AccessLevel.NONE)
+  private YamlDocument config;
 
   @Getter
   private boolean debugEnabled = false;
   @Getter
   private boolean pluginEnabled = false;
   @Getter
-  private String kickMessage = DEFAULT_KICK_MESSAGE;
+  private String defaultLocale = "en";
   @Getter
-  private String table = DEFAULT_TABLE;
+  private DatabaseConfig database = new DatabaseConfig();
   @Getter
-  private String databaseUrl = DATABASE_URL_FORMAT;
-  @Getter
-  private String databaseUser = "root";
-  @Getter
-  private String databasePassword = "1q2w3e4r";
+  private Map<String, Messages> localizedMessages = new HashMap<>();
 
   public ConfigManager(VelocityWhitelist plugin, Logger logger, Path dataDirectory) {
     this.plugin = plugin;
-    this.dataDirectory = dataDirectory;
     this.logger = logger;
-    this.configFile = dataDirectory.resolve("config.properties");
+    this.configFile = new File(dataDirectory.toFile(), "config.yml");
+  }
+
+  public void initConfig() {
+    try {
+      config = YamlDocument.create(configFile,
+          Objects.requireNonNull(getClass().getResourceAsStream("/config.yml")),
+          GeneralSettings.DEFAULT,
+          LoaderSettings.builder().setAutoUpdate(true).build(),
+          DumperSettings.DEFAULT,
+          UpdaterSettings.builder().setVersioning(new BasicVersioning("file-version"))
+              .setOptionSorting(UpdaterSettings.OptionSorting.SORT_BY_DEFAULTS).build());
+
+      config.update();
+      config.save();
+
+      loadConfig();
+    } catch (IOException e) {
+      throw new RuntimeException("Config initialize error. ", e); // Need to throw error, otherwise it won't unload.
+    }
+  }
+
+  private void modifyConfigFile(String path, Object value) {
+    config.set(path, value);
+    try {
+      config.save();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   /**
@@ -58,55 +88,14 @@ public class ConfigManager {
     plugin.logDebug("Reloading configuration");
 
     try {
-      this.properties = loadConfig();
-    } catch (Exception e) {
+      config.reload();
+      loadConfig();
+    } catch (IOException e) {
       logger.error("Error while reloading configuration", e);
       return false;
     }
+
     return true;
-  }
-
-  /**
-   * Saves the default configuration file if it doesn't exist.
-   * This method creates the data directory if it doesn't exist,
-   * and then writes the default configuration content to the config file.
-   */
-  public void saveDefaultConfig() {
-    if (Files.notExists(dataDirectory)) {
-      plugin.logDebug("Creating data directory");
-      try {
-        Files.createDirectories(dataDirectory);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    }
-    if (Files.notExists(configFile)) {
-      plugin.logDebug("Saving default configuration");
-      val defaultConfigContent = """
-          # Whitelist Status
-          enabled: false
-
-          # Enable Debug Messages
-          debug: false
-
-          # MySQL settings
-          host: localhost
-          user: username
-          password: strongpassword
-          database: velocity
-          port: 3306
-          table: g_whitelist
-
-          # Kick message
-          message: Sorry, you are not in the whitelist.
-          """;
-      try {
-        Files.write(configFile, defaultConfigContent.getBytes(), StandardOpenOption.CREATE);
-      } catch (IOException e) {
-        throw new RuntimeException("Error while saving default configuration", e);
-      }
-    }
-
   }
 
   /**
@@ -116,64 +105,78 @@ public class ConfigManager {
    *
    * @return The Properties object containing the configuration.
    */
-  public Properties loadConfig() {
-    val properties = new Properties();
-
+  public void loadConfig() {
     plugin.logDebug("Loading configuration");
 
-    if (Files.exists(configFile)) {
-      try (val input = Files.newInputStream(configFile, StandardOpenOption.READ)) {
-        val reader = new InputStreamReader(input, StandardCharsets.UTF_8);
-        properties.load(reader);
-      } catch (IOException e) {
-        throw new RuntimeException("Error while loading configuration", e);
-      }
-    }
+    debugEnabled = config.getBoolean("debug");
+    pluginEnabled = config.getBoolean("enabled");
+    defaultLocale = config.getString("defaultLocale");
 
-    debugEnabled = Boolean.parseBoolean(properties.getProperty("debug", "false"));
+    loadDatabaseCfg();
+    loadMessages();
+
     logger.info("Debug mode is {}", debugEnabled ? "enabled" : "disabled");
-
-    pluginEnabled = Boolean.parseBoolean(properties.getProperty("enabled", "false"));
-    kickMessage = properties.getProperty("message", DEFAULT_KICK_MESSAGE);
-    table = properties.getProperty("table", DEFAULT_TABLE);
-
-    val host = properties.getProperty("host", "localhost");
-    val port = properties.getProperty("port", "3306");
-    val database = properties.getProperty("database", "velocity");
-    databaseUrl = String.format(DATABASE_URL_FORMAT, host, port, database);
-
-    databaseUser = properties.getProperty("user", "root");
-    databasePassword = properties.getProperty("password", "1q2w3e4r");
-
-    return properties;
   }
 
-  /**
-   * Saves the configuration to the config file.
-   * This method writes the properties to the config file.
-   * 
-   * @param properties The Properties object containing the configuration to save.
-   */
-  public void saveConfig(Properties properties) {
-    plugin.logDebug("Saving configuration");
-    try (val output = Files.newOutputStream(configFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
-      val writer = new OutputStreamWriter(output, StandardCharsets.UTF_8);
-      properties.store(writer, "Updated Configuration");
-    } catch (IOException e) {
-      throw new RuntimeException("Error while saving configuration", e);
-    }
+  private void loadDatabaseCfg() {
+    val section = config.getSection("database");
+    // construct the url
+    val urlFormat = "jdbc:mariadb://%s:%s/%s%s";
+    val host = section.getString("host");
+    val port = section.getInt("port");
+    val dbName = section.getString("database");
+    val params = section.getString("params");
+    val url = String.format(urlFormat, host, port, dbName, params);
+
+    database.setUrl(url);
+    database.setUser(section.getString("user"));
+    database.setPassword(section.getString("password"));
+    database.setWhitelistTable(section.getString("whitelistTable"));
+    database.setCreateTables(section.getBoolean("createTables"));
+    database.setMaxPoolSize(section.getInt("maxPoolSize"));
+    database.setMinIdle(section.getInt("minIdle"));
+    database.setConnectionTimeout(section.getLong("connectionTimeout"));
+    database.setIdleTimeout(section.getLong("idleTimeout"));
+    database.setMaxLifetime(section.getLong("maxLifetime"));
+    database.setCacheStmt(section.getBoolean("cacheStmt"));
+    database.setPrepStmtCacheSize(section.getInt("prepStmtCacheSize"));
+    database.setPrepStmtCacheSqlLimit(section.getInt("prepStmtCacheSqlLimit"));
+    database.setUseServerPrepStmts(section.getBoolean("useServerPrepStmts"));
+    database.setUseLocalSessionState(section.getBoolean("useLocalSessionState"));
+    database.setCacheServerConfiguration(section.getBoolean("cacheServerConfiguration"));
+    database.setElideSetAutoCommit(section.getBoolean("elideSetAutoCommit"));
+    database.setMaintainTimeStats(section.getBoolean("maintainTimeStats"));
+  }
+
+  private void loadMessages() {
+    localizedMessages.clear();
+
+    val kicked = initComp("messages.kicked");
+    val insufficientPermission = initComp("messages.insufficientPermission");
+
+    val messages = new Messages()
+        .setKicked(kicked)
+        .setInsufficientPermission(insufficientPermission);
+    localizedMessages.put(defaultLocale, messages);
   }
 
   public void setDebugMode(boolean enabled) {
     debugEnabled = enabled;
-    properties.setProperty("debug", String.valueOf(debugEnabled));
-    saveConfig(properties);
+    modifyConfigFile("debug", enabled);
   }
 
   public void setPluginEnabled(boolean enabled) {
     pluginEnabled = enabled;
-    properties.setProperty("enabled", String.valueOf(pluginEnabled));
-    saveConfig(properties);
+    modifyConfigFile("enabled", enabled);
+  }
+
+  private Component initComp(String path) {
+    val str = getConfStr(path);
+    return MiniMessage.miniMessage().deserialize(str);
+  }
+
+  private String getConfStr(String path) {
+    return config.getString(path).replace("\\n", "\n");
   }
 
 }

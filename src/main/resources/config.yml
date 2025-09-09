@@ -1,0 +1,45 @@
+# Don't change the below 2, "isDataFileUpToDate" should be false, it's normal.
+file-version: 1
+isDataFileUpToDate: false
+
+debug: false
+enabled: false
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: 1q2w3e4r
+  database: defaultdb
+  params: ?sslMode=trust
+  whitelistTable: whitelist
+  createTables: true
+  # Maximum number of connections in the pool (5-10 for small servers, 10-20 for large)
+  maxPoolSize: 10
+  # Minimum number of idle connections (2-5 for efficiency)
+  minIdle: 5
+  # Time to wait for a connection (ms, 10000 = 10 seconds)
+  connectionTimeout: 30000
+  # Time a connection can remain idle (ms, 600000 = 10 minutes)
+  idleTimeout: 600000
+  # Maximum lifetime of a connection (ms, 1800000 = 30 minutes)
+  maxLifetime: 1800000
+  # Enable caching of prepared statements for performance
+  cacheStmt: true
+  # Number of prepared statements to cache
+  prepStmtCacheSize: 250
+  # Maximum SQL length for cached statements
+  prepStmtCacheSqlLimit: 2048
+  # Use server-side prepared statements for better performance
+  useServerPrepStmts: true
+  # Optimize session state handling
+  useLocalSessionState: true
+  # Cache server configuration to reduce queries
+  cacheServerConfiguration: true
+  # Skip redundant auto-commit calls
+  elideSetAutoCommit: true
+  # Disable connection timing stats to reduce overhead
+  maintainTimeStats: true
+messages:
+  kicked: "Sorry, you are not in the whitelist."
+  failedToCheckWhitelist: "Failed to check whitelist.\\nPlease contact the server administrators."
+  insufficientPermission: "You do not have permission to use this command."

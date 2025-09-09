@@ -145,8 +145,8 @@ public class VwlCommandHandler {
     val target = context.getArgument(VWL_COMMAND_TARGET_ARGUMENT, String.class);
 
     switch (action.toLowerCase()) {
-      case "add" -> whitelistService.addWhitelist(source, target);
-      case "del" -> whitelistService.delWhitelist(source, target);
+      // case "add" -> whitelistService.addWhitelist(source, target);
+      // case "del" -> whitelistService.delWhitelist(source, target);
       case "list" -> whitelistService.listWhitelist(source, target);
       case "debug" -> {
         if (!source.hasPermission(Constants.BASE_PERMISSION_ADMIN)) {

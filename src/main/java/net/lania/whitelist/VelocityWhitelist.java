@@ -74,15 +74,12 @@ public class VelocityWhitelist {
   @Subscribe
   public void onProxyInitialization(ProxyInitializeEvent event) {
     try {
-      // Load the configuration
-      configHandler.saveDefaultConfig();
-      configHandler.loadConfig();
+      // Initialize the configuration
+      configHandler.initConfig();
 
-      if (configHandler.isPluginEnabled()) {
-        // Initialize storage
-        storage.openConnection();
-        // Create the database table if the plugin is enabled
-        server.getScheduler().buildTask(this, () -> storage.createDatabaseTable()).schedule();
+      if (configHandler.isPluginEnabled() && !storage.init()) {
+        logger.error("Failed to initialize storage");
+        return;
       }
 
       // Register the whitelist command

@@ -8,7 +8,6 @@ import com.velocitypowered.api.event.connection.LoginEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.val;
-import net.kyori.adventure.text.Component;
 import net.lania.whitelist.service.WhitelistService;
 
 @RequiredArgsConstructor
@@ -43,8 +42,8 @@ public class EventHandler {
 
     // Check if the whitelist is enabled and if the player is not whitelisted
     if (configHandler.isPluginEnabled() && !whitelistService.isWhitelisted(player)) {
-      val kickMessage = Component.text(configHandler.getKickMessage());
-      event.setResult(ComponentResult.denied(kickMessage));
+      event.setResult(ComponentResult
+          .denied(configHandler.getLocalizedMessages().get(configHandler.getDefaultLocale()).getKicked()));
     }
   }
 }
